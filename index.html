@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ТЬМА / DARKNESS</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+    touch-action: none;
+    user-select: none;
+  }
+  canvas { display: block; }
+  #ui {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 10;
+  }
+  #health-bar {
+    position: fixed; top: 16px; left: 16px;
+    width: 120px; height: 8px;
+    background: rgba(255,0,0,0.2);
+    border: 1px solid rgba(255,0,0,0.5);
+  }
+  #health-fill {
+    height: 100%; background: #c00;
+    transition: width 0.3s;
+    box-shadow: 0 0 6px #f00;
+  }
+  #stamina-bar {
+    position: fixed; top: 30px; left: 16px;
+    width: 120px; height: 5px;
+    background: rgba(0,255,100,0.1);
+    border: 1px solid rgba(0,255,100,0.3);
+  }
+  #stamina-fill {
+    height: 100%; background: #0f6;
+    transition: width 0.2s;
+  }
+  #flashlight-icon {
+    position: fixed; top: 16px; right: 16px;
+    font-size: 20px; opacity: 0.7;
+    text-shadow: 0 0 10px #fff;
+  }
+  #message {
+    position: fixed; bottom: 120px; left: 0; right: 0;
+    text-align: center; color: #c00;
+    font-size: 13px; letter-spacing: 3px;
+    text-transform: uppercase;
+    opacity: 0; transition: opacity 0.5s;
+    text-shadow: 0 0 10px #f00;
+  }
+  #crosshair {
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 6px; height: 6px;
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 50%;
+  }
+  #look-zone {
+    position: fixed; right: 0; top: 0;
+    width: 50%; height: 75%;
+    z-index: 20;
+  }
+  #move-zone {
+    position: fixed; left: 0; top: 0;
+    width: 50%; height: 75%;
+    z-index: 20;
+  }
+  #controls {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    height: 100px; z-index: 20;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.8));
+  }
+  .dpad {
+    display: grid; grid-template-columns: repeat(3,44px);
+    grid-template-rows: repeat(3,44px); gap: 2px;
+  }
+  .dpad-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px; color: rgba(255,255,255,0.5);
+    font-size: 16px; display: flex;
+    align-items: center; justify-content: center;
+    cursor: pointer; transition: background 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .dpad-btn:active, .dpad-btn.pressed {
+    background: rgba(255,255,255,0.15);
+  }
+  .dpad-blank { background: transparent; border: none; }
+  .action-btns { display: flex; gap: 10px; flex-direction: column; align-items: center; }
+  .action-btn {
+    width: 54px; height: 54px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.6); font-size: 11px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; text-align: center; line-height: 1.2;
+    letter-spacing: 1px; text-transform: uppercase;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.1s;
+  }
+  .action-btn:active { background: rgba(255,0,0,0.2); border-color: rgba(255,0,0,0.5); }
+  #screen-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #f00; opacity: 0; pointer-events: none; z-index: 50;
+    transition: opacity 0.1s;
+  }
+  #title-screen {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: #000; z-index: 100;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 30px;
+  }
+  #title-screen h1 {
+    color: #c00; font-size: 38px; letter-spacing: 8px;
+    text-transform: uppercase;
+    text-shadow: 0 0 20px #f00, 0 0 40px #900;
+    animation: flicker 3s infinite;
+  }
+  #title-screen p {
+    color: rgba(255,255,255,0.3); font-size: 11px;
+    letter-spacing: 3px; text-align: center; padding: 0 30px;
+    line-height: 1.8;
+  }
+  #start-btn {
+    border: 1px solid rgba(200,0,0,0.5);
+    color: #c00; background: transparent;
+    padding: 14px 40px; font-family: 'Courier New', monospace;
+    font-size: 13px; letter-spacing: 4px; text-transform: uppercase;
+    cursor: pointer; animation: pulse-border 2s infinite;
+  }
+  #gameover-screen {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.92); z-index: 100;
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center; gap: 24px;
+  }
+  #gameover-screen h2 {
+    color: #800; font-size: 30px; letter-spacing: 6px;
+    text-transform: uppercase; text-shadow: 0 0 20px #f00;
+  }
+  #win-screen {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.92); z-index: 100;
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center; gap: 24px;
+  }
+  #win-screen h2 { color: #4af; font-size: 26px; letter-spacing: 4px; text-align: center; }
+  #win-screen p { color: rgba(255,255,255,0.4); font-size: 12px; letter-spacing: 2px; text-align: center; }
+  .retry-btn {
+    border: 1px solid rgba(200,0,0,0.4);
+    color: rgba(255,255,255,0.5); background: transparent;
+    padding: 12px 30px; font-family: 'Courier New', monospace;
+    font-size: 12px; letter-spacing: 3px; cursor: pointer;
+  }
+  #keys-info {
+    color: rgba(255,255,255,0.15); font-size: 10px;
+    letter-spacing: 2px; text-align: center;
+  }
+  #items-found {
+    position: fixed; top: 42px; left: 16px;
+    color: rgba(255,255,255,0.3); font-size: 10px;
+    letter-spacing: 2px;
+  }
+  @keyframes flicker {
+    0%,100%{opacity:1} 92%{opacity:1} 93%{opacity:.4} 95%{opacity:1} 97%{opacity:.6} 98%{opacity:1}
+  }
+  @keyframes pulse-border {
+    0%,100%{box-shadow:0 0 0 rgba(200,0,0,0)} 50%{box-shadow:0 0 14px rgba(200,0,0,0.4)}
+  }
+  #sprint-bar {
+    position: fixed; bottom: 110px; right: 16px;
+    color: rgba(255,255,255,0.25); font-size: 9px; letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+<div id="ui">
+  <div id="health-bar"><div id="health-fill" style="width:100%"></div></div>
+  <div id="stamina-bar"><div id="stamina-fill" style="width:100%"></div></div>
+  <div id="items-found">КЛЮЧИ: 0/3</div>
+  <div id="flashlight-icon">🔦</div>
+  <div id="crosshair"></div>
+  <div id="message"></div>
+  <div id="sprint-bar">БЕЖАТЬ: удерживай ▲</div>
+</div>
+<div id="screen-overlay"></div>
+
+<!-- Touch zones -->
+<div id="move-zone"></div>
+<div id="look-zone"></div>
+
+<!-- Controls -->
+<div id="controls">
+  <div class="dpad">
+    <div class="dpad-blank"></div>
+    <div class="dpad-btn" id="btn-w">▲</div>
+    <div class="dpad-blank"></div>
+    <div class="dpad-btn" id="btn-a">◄</div>
+    <div class="dpad-blank"></div>
+    <div class="dpad-btn" id="btn-d">►</div>
+    <div class="dpad-blank"></div>
+    <div class="dpad-btn" id="btn-s">▼</div>
+    <div class="dpad-blank"></div>
+  </div>
+  <div class="action-btns">
+    <button class="action-btn" id="btn-run">БЕЖАТЬ</button>
+    <button class="action-btn" id="btn-flash">ФОНАРЬ</button>
+  </div>
+</div>
+
+<!-- Screens -->
+<div id="title-screen">
+  <h1>ТЬМА</h1>
+  <p>Ты заперт в заброшенном особняке.<br>Найди 3 ключа и выберись наружу.<br>Ты не один здесь...</p>
+  <button id="start-btn" onclick="startGame()">НАЧАТЬ</button>
+  <div id="keys-info">Левая половина — движение · Правая — обзор</div>
+</div>
+
+<div id="gameover-screen">
+  <h2>ТЫ МЁРТВ</h2>
+  <p style="color:rgba(255,255,255,0.3);font-size:12px;letter-spacing:2px">ОНО ТЕБЯ НАШЛО</p>
+  <button class="retry-btn" onclick="startGame()">СНОВА</button>
+</div>
+
+<div id="win-screen">
+  <h2>ТЫ ВЫЖИЛ</h2>
+  <p>Ключи найдены. Выход открыт.<br>Но ты никогда не забудешь, что видел.</p>
+  <button class="retry-btn" onclick="startGame()">СНОВА</button>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H;
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ===== MAP =====
+// 1=wall, 0=floor, 2=key, 3=enemy-spawn, 4=exit-door
+const MAP_W = 20, MAP_H = 20;
+const rawMap = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1],
+  [1,0,1,1,0,1,1,1,0,1,0,1,1,0,1,1,1,0,0,1],
+  [1,0,1,0,0,0,0,1,0,0,0,0,1,2,0,0,1,0,0,1],
+  [1,0,1,0,1,1,0,1,0,1,1,0,1,1,1,0,1,0,1,1],
+  [1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,1,1,0,1,0,1,1,1,1,1,1,0,1,1,0,1,1,1,1],
+  [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1],
+  [1,0,1,1,1,1,1,0,0,1,0,1,1,1,0,1,1,1,0,1],
+  [1,0,0,0,0,0,1,0,1,1,1,0,0,0,0,0,0,1,0,1],
+  [1,1,0,1,1,0,1,0,0,0,0,0,1,1,0,1,0,1,0,1],
+  [1,0,0,1,0,0,0,0,1,1,0,0,0,1,0,0,0,0,0,1],
+  [1,0,1,1,0,1,1,1,1,0,0,1,0,0,0,1,1,1,0,1],
+  [1,0,0,0,0,0,0,0,0,0,3,0,0,1,0,0,0,1,0,1],
+  [1,1,1,0,1,0,1,1,0,1,1,1,0,1,1,0,0,0,0,1],
+  [1,2,0,0,1,0,0,1,0,0,0,0,0,0,0,0,1,1,0,1],
+  [1,0,1,0,0,0,0,0,0,1,0,1,1,1,0,0,0,1,0,1],
+  [1,0,1,1,1,1,0,1,0,0,0,0,0,0,0,1,0,0,0,1],
+  [1,0,0,0,0,2,0,0,0,1,3,0,0,0,0,0,0,0,4,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+let map;
+function resetMap() { map = rawMap.map(r => [...r]); }
+
+// ===== PLAYER =====
+let player, keys, health, stamina, flashOn, gameActive, gameOver;
+let enemies = [];
+let flashTimer = 0;
+let breathTimer = 0;
+let heartbeatTimer = 0;
+let noiseLevel = 0;
+
+function startGame() {
+  document.getElementById('title-screen').style.display = 'none';
+  document.getElementById('gameover-screen').style.display = 'none';
+  document.getElementById('win-screen').style.display = 'none';
+  resetMap();
+  player = { x: 1.5, y: 1.5, angle: 0, speed: 0 };
+  keys = 0;
+  health = 100;
+  stamina = 100;
+  flashOn = true;
+  gameActive = true;
+  gameOver = false;
+  enemies = [];
+  // spawn enemies
+  for (let y = 0; y < MAP_H; y++)
+    for (let x = 0; x < MAP_W; x++)
+      if (rawMap[y][x] === 3)
+        enemies.push({ x: x+0.5, y: y+0.5, angle: Math.random()*Math.PI*2,
+          speed: 0.015, alert: false, alertTimer: 0, stunTimer: 0, phase: Math.random()*Math.PI*2 });
+  document.getElementById('health-fill').style.width = '100%';
+  document.getElementById('stamina-fill').style.width = '100%';
+  document.getElementById('items-found').textContent = 'КЛЮЧИ: 0/3';
+  showMsg('');
+  noiseLevel = 0;
+  loop();
+}
+
+// ===== RAYCASTER =====
+const FOV = Math.PI / 2.8;
+const MAX_DEPTH = 16;
+
+function castRay(px, py, angle) {
+  const rayDX = Math.cos(angle), rayDY = Math.sin(angle);
+  let dist = 0, hit = false, side = 0;
+  const stepSize = 0.05;
+  let rx = px, ry = py;
+  while (dist < MAX_DEPTH && !hit) {
+    rx += rayDX * stepSize;
+    ry += rayDY * stepSize;
+    dist += stepSize;
+    const mx = Math.floor(rx), my = Math.floor(ry);
+    if (mx < 0 || my < 0 || mx >= MAP_W || my >= MAP_H) { hit = true; break; }
+    const cell = map[my][mx];
+    if (cell === 1) {
+      hit = true;
+      // determine side
+      const prevX = rx - rayDX*stepSize, prevY = ry - rayDY*stepSize;
+      const pmx = Math.floor(prevX), pmy = Math.floor(prevY);
+      side = (pmx !== mx) ? 0 : 1;
+    }
+  }
+  return { dist, hit, rx, ry, side };
+}
+
+// ===== RENDERING =====
+function render() {
+  const cols = Math.floor(W);
+  // sky gradient
+  const skyGrad = ctx.createLinearGradient(0,0,0,H/2);
+  skyGrad.addColorStop(0,'#000000');
+  skyGrad.addColorStop(1,'#0a0005');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0,0,W,H/2);
+  // floor
+  const floorGrad = ctx.createLinearGradient(0,H/2,0,H);
+  floorGrad.addColorStop(0,'#0a0008');
+  floorGrad.addColorStop(1,'#000000');
+  ctx.fillStyle = floorGrad;
+  ctx.fillRect(0,H/2,W,H/2);
+
+  const numRays = Math.floor(W/2);
+  const zBuffer = new Array(numRays);
+
+  for (let i = 0; i < numRays; i++) {
+    const rayAngle = player.angle - FOV/2 + (i/numRays)*FOV;
+    const r = castRay(player.x, player.y, rayAngle);
+    const corr = r.dist * Math.cos(rayAngle - player.angle);
+    zBuffer[i] = corr;
+
+    const lineH = Math.min(H, H / (corr + 0.001));
+    const lineTop = (H - lineH) / 2;
+
+    // wall color based on side
+    let brightness = flashOn ? Math.min(1, 1/(corr*corr*0.08+0.3)) : Math.min(0.3, 1/(corr*corr*0.5+1));
+    if (r.side === 1) brightness *= 0.65;
+
+    const base = flashOn ? [20,5,5] : [6,2,6];
+    const r2 = Math.floor(base[0] + 180*brightness);
+    const g2 = Math.floor(base[1] + 10*brightness);
+    const b2 = Math.floor(base[2] + 30*brightness);
+
+    const x = i*(W/numRays);
+    const w2 = Math.ceil(W/numRays)+1;
+    ctx.fillStyle = `rgb(${r2},${g2},${b2})`;
+    ctx.fillRect(x, lineTop, w2, lineH);
+  }
+
+  // draw enemies
+  for (const e of enemies) {
+    const dx = e.x - player.x, dy = e.y - player.y;
+    const dist = Math.sqrt(dx*dx+dy*dy);
+    if (dist > MAX_DEPTH) continue;
+    let spriteAngle = Math.atan2(dy, dx) - player.angle;
+    while (spriteAngle > Math.PI) spriteAngle -= Math.PI*2;
+    while (spriteAngle < -Math.PI) spriteAngle += Math.PI*2;
+    if (Math.abs(spriteAngle) > FOV*0.65) continue;
+    const screenX = (0.5 + spriteAngle/FOV) * W;
+    const spriteH = Math.min(H*1.5, H/dist);
+    const spriteTop = (H-spriteH)/2;
+    const spriteW = spriteH * 0.55;
+    const col = Math.floor((screenX - spriteW/2) / (W/numRays));
+
+    let vis = false;
+    for (let s = Math.max(0,Math.floor(col)); s < Math.min(numRays,Math.floor(col+spriteW/(W/numRays))); s++)
+      if (zBuffer[s] > dist - 0.5) { vis = true; break; }
+    if (!vis) continue;
+
+    const alpha = e.stunTimer > 0 ? 0.3 : Math.min(1, (flashOn ? 1 : 0.4));
+    const pulse = Math.sin(Date.now()*0.01 + e.phase)*0.15+0.85;
+
+    // body
+    ctx.save();
+    ctx.globalAlpha = alpha*pulse;
+    const eyeGlow = e.alert ? 'rgba(255,0,0,' : 'rgba(150,0,50,';
+    const grad = ctx.createLinearGradient(screenX-spriteW/2, spriteTop, screenX+spriteW/2, spriteTop+spriteH);
+    grad.addColorStop(0,'rgba(20,5,15,0.9)');
+    grad.addColorStop(0.4, e.alert ? 'rgba(60,0,0,0.95)' : 'rgba(30,5,25,0.9)');
+    grad.addColorStop(1,'rgba(5,0,10,0.9)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(screenX, spriteTop+spriteH*0.5, spriteW/2, spriteH/2, 0, 0, Math.PI*2);
+    ctx.fill();
+    // eyes
+    const eyeY = spriteTop + spriteH*0.3;
+    const eyeR = spriteW*0.09;
+    const eo = spriteW*0.18;
+    ctx.fillStyle = eyeGlow + (e.alert ? '0.9)' : '0.5)');
+    ctx.shadowColor = e.alert ? '#f00' : '#800';
+    ctx.shadowBlur = e.alert ? 20 : 8;
+    ctx.beginPath(); ctx.arc(screenX-eo, eyeY, eyeR, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(screenX+eo, eyeY, eyeR, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // vignette
+  const vig = ctx.createRadialGradient(W/2,H/2,H*0.2,W/2,H/2,H*0.8);
+  vig.addColorStop(0,'rgba(0,0,0,0)');
+  vig.addColorStop(1,'rgba(0,0,0,0.75)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0,0,W,H);
+
+  // fear vignette
+  if (noiseLevel > 0) {
+    const fearVig = ctx.createRadialGradient(W/2,H/2,H*0.1,W/2,H/2,H*0.6);
+    fearVig.addColorStop(0,'rgba(0,0,0,0)');
+    fearVig.addColorStop(1,`rgba(80,0,0,${noiseLevel*0.4})`);
+    ctx.fillStyle = fearVig;
+    ctx.fillRect(0,0,W,H);
+  }
+
+  // static noise on hit
+  if (flashTimer > 0) {
+    ctx.globalAlpha = flashTimer*0.5;
+    ctx.fillStyle = `rgba(255,0,0,0.3)`;
+    ctx.fillRect(0,0,W,H);
+    ctx.globalAlpha = 1;
+  }
+
+  // grain
+  if (Math.random() > 0.3) {
+    const imageData = ctx.createImageData(W, H);
+    const d = imageData.data;
+    for (let i = 0; i < d.length; i += 4*(Math.floor(Math.random()*3)+1)) {
+      const g = Math.floor(Math.random()*30);
+      d[i]=d[i+1]=d[i+2]=g; d[i+3]=15;
+    }
+    ctx.putImageData(imageData,0,0);
+  }
+}
+
+// ===== INPUT =====
+const keysDown = {};
+document.addEventListener('keydown', e => keysDown[e.key] = true);
+document.addEventListener('keyup', e => keysDown[e.key] = false);
+
+// Dpad buttons
+function bindBtn(id, key) {
+  const el = document.getElementById(id);
+  el.addEventListener('touchstart', e => { e.preventDefault(); keysDown[key] = true; el.classList.add('pressed'); }, {passive:false});
+  el.addEventListener('touchend', e => { e.preventDefault(); keysDown[key] = false; el.classList.remove('pressed'); }, {passive:false});
+}
+bindBtn('btn-w','w'); bindBtn('btn-s','s');
+bindBtn('btn-a','a'); bindBtn('btn-d','d');
+
+const runBtn = document.getElementById('btn-run');
+runBtn.addEventListener('touchstart', e => { e.preventDefault(); keysDown['Shift'] = true; }, {passive:false});
+runBtn.addEventListener('touchend', e => { e.preventDefault(); keysDown['Shift'] = false; }, {passive:false});
+
+document.getElementById('btn-flash').addEventListener('click', () => {
+  flashOn = !flashOn;
+  document.getElementById('flashlight-icon').style.opacity = flashOn ? '0.9' : '0.2';
+});
+
+// Look zone touch
+let lookStartX = null, lookLastX = null, lookLastY = null;
+const lookZone = document.getElementById('look-zone');
+lookZone.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  lookStartX = t.clientX; lookLastX = t.clientX; lookLastY = t.clientY;
+}, {passive:false});
+lookZone.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  const dx = t.clientX - lookLastX;
+  player.angle += dx * 0.005;
+  lookLastX = t.clientX; lookLastY = t.clientY;
+}, {passive:false});
+lookZone.addEventListener('touchend', e => { lookStartX = null; }, {passive:false});
+
+// Move zone touch (virtual stick)
+let moveTouch = null;
+const moveZone = document.getElementById('move-zone');
+moveZone.addEventListener('touchstart', e => {
+  e.preventDefault();
+  moveTouch = { startX: e.changedTouches[0].clientX, startY: e.changedTouches[0].clientY,
+    id: e.changedTouches[0].identifier };
+}, {passive:false});
+moveZone.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (moveTouch && t.identifier === moveTouch.id) {
+      const dy = t.clientY - moveTouch.startY;
+      const dx = t.clientX - moveTouch.startX;
+      keysDown['w'] = dy < -20;
+      keysDown['s'] = dy > 20;
+      keysDown['a'] = dx < -20;
+      keysDown['d'] = dx > 20;
+    }
+  }
+}, {passive:false});
+moveZone.addEventListener('touchend', e => {
+  keysDown['w']=keysDown['s']=keysDown['a']=keysDown['d']=false;
+  moveTouch = null;
+}, {passive:false});
+
+// ===== UTILS =====
+function canMove(nx, ny) {
+  const margin = 0.3;
+  for (let dy = -margin; dy <= margin; dy += margin)
+    for (let dx = -margin; dx <= margin; dx += margin) {
+      const mx = Math.floor(nx+dx), my = Math.floor(ny+dy);
+      if (mx < 0||my < 0||mx >= MAP_W||my >= MAP_H) return false;
+      const c = map[my][mx];
+      if (c === 1) return false;
+    }
+  return true;
+}
+
+let msgTimeout;
+function showMsg(txt, dur=2500) {
+  const el = document.getElementById('message');
+  el.textContent = txt;
+  el.style.opacity = txt ? '1' : '0';
+  clearTimeout(msgTimeout);
+  if (txt) msgTimeout = setTimeout(() => el.style.opacity='0', dur);
+}
+
+function flashDmg() {
+  const ov = document.getElementById('screen-overlay');
+  ov.style.opacity = '0.5';
+  setTimeout(() => ov.style.opacity='0', 120);
+  flashTimer = 1;
+  setTimeout(()=>flashTimer=0,200);
+}
+
+// ===== AUDIO (Web Audio API) =====
+let audioCtx;
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+}
+function playSound(freq, type, dur, vol=0.3, detune=0) {
+  if (!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.connect(g); g.connect(audioCtx.destination);
+  o.type = type; o.frequency.value = freq; o.detune.value = detune;
+  g.gain.setValueAtTime(vol, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+dur);
+  o.start(); o.stop(audioCtx.currentTime+dur);
+}
+function playHeartbeat() {
+  if (!audioCtx) return;
+  playSound(60,'sine',0.1,0.2);
+  setTimeout(()=>playSound(55,'sine',0.1,0.15),150);
+}
+function playScreech() {
+  if (!audioCtx) return;
+  playSound(200+Math.random()*100,'sawtooth',0.3,0.4,-200+Math.random()*400);
+}
+function playPickup() {
+  if (!audioCtx) return;
+  playSound(440,'sine',0.3,0.2);
+  setTimeout(()=>playSound(880,'sine',0.3,0.15),150);
+}
+
+// ===== GAME LOOP =====
+let lastT = 0;
+let animId;
+function loop() {
+  if (!gameActive) return;
+  animId = requestAnimationFrame(loop);
+  const now = performance.now();
+  const dt = Math.min((now-lastT)/1000, 0.05);
+  lastT = now;
+  update(dt);
+  render();
+}
+
+function update(dt) {
+  if (!gameActive) return;
+  const sprint = keysDown['Shift'] && stamina > 0;
+  const baseSpeed = sprint ? 4.5 : 2.8;
+  stamina = sprint
+    ? Math.max(0, stamina - dt*30)
+    : Math.min(100, stamina + dt*20);
+  document.getElementById('stamina-fill').style.width = stamina+'%';
+
+  let moved = false;
+  if (keysDown['w']||keysDown['ArrowUp']) {
+    const nx = player.x + Math.cos(player.angle)*baseSpeed*dt;
+    const ny = player.y + Math.sin(player.angle)*baseSpeed*dt;
+    if (canMove(nx, player.y)) { player.x = nx; moved = true; }
+    if (canMove(player.x, ny)) { player.y = ny; moved = true; }
+  }
+  if (keysDown['s']||keysDown['ArrowDown']) {
+    const nx = player.x - Math.cos(player.angle)*baseSpeed*dt;
+    const ny = player.y - Math.sin(player.angle)*baseSpeed*dt;
+    if (canMove(nx, player.y)) { player.x = nx; moved = true; }
+    if (canMove(player.x, ny)) { player.y = ny; moved = true; }
+  }
+  if (keysDown['a']||keysDown['ArrowLeft']) {
+    player.angle -= 1.8*dt;
+  }
+  if (keysDown['d']||keysDown['ArrowRight']) {
+    player.angle += 1.8*dt;
+  }
+
+  // key pickup
+  const px = Math.floor(player.x), py = Math.floor(player.y);
+  if (map[py][px] === 2) {
+    map[py][px] = 0;
+    keys++;
+    document.getElementById('items-found').textContent = `КЛЮЧИ: ${keys}/3`;
+    showMsg(keys < 3 ? `КЛЮЧ НАЙДЕН! (${keys}/3)` : 'ВСЕ КЛЮЧИ! НАЙДИ ВЫХОД!', 3000);
+    playPickup();
+  }
+  // exit
+  if (map[py][px] === 4 && keys >= 3) {
+    gameActive = false;
+    document.getElementById('win-screen').style.display = 'flex';
+    return;
+  }
+
+  // enemy update
+  let nearestDist = Infinity;
+  for (const e of enemies) {
+    if (e.stunTimer > 0) { e.stunTimer -= dt; continue; }
+    const dx = player.x - e.x, dy = player.y - e.y;
+    const dist = Math.sqrt(dx*dx+dy*dy);
+    nearestDist = Math.min(nearestDist, dist);
+
+    // alert
+    const canSee = dist < (flashOn ? 5 : 3);
+    if (canSee) {
+      if (!e.alert) playScreech();
+      e.alert = true;
+      e.alertTimer = 3;
+    }
+    if (e.alertTimer > 0) e.alertTimer -= dt;
+    else e.alert = false;
+
+    // move
+    const targetAngle = Math.atan2(dy, dx);
+    let da = targetAngle - e.angle;
+    while (da > Math.PI) da -= Math.PI*2;
+    while (da < -Math.PI) da += Math.PI*2;
+    e.angle += da * (e.alert ? 0.08 : 0.02);
+
+    const spd = e.alert ? 2.2 : 0.9;
+    const ex = e.x + Math.cos(e.angle)*spd*dt;
+    const ey = e.y + Math.sin(e.angle)*spd*dt;
+    if (canMove(ex, e.y)) e.x = ex;
+    if (canMove(e.x, ey)) e.y = ey;
+
+    // damage
+    if (dist < 0.7) {
+      health -= dt*35;
+      flashDmg();
+      document.getElementById('health-fill').style.width = Math.max(0,health)+'%';
+      if (health <= 0) {
+        gameActive = false;
+        setTimeout(() => document.getElementById('gameover-screen').style.display = 'flex', 400);
+        return;
+      }
+    }
+  }
+
+  // fear/noise
+  noiseLevel = Math.max(0, Math.min(1, 1 - nearestDist/6));
+
+  // heartbeat
+  if (nearestDist < 4) {
+    heartbeatTimer -= dt;
+    if (heartbeatTimer <= 0) {
+      playHeartbeat();
+      heartbeatTimer = Math.max(0.3, nearestDist/6);
+    }
+  }
+  if (flashTimer > 0) flashTimer -= dt*5;
+}
+
+// Keyboard mouse look
+document.addEventListener('mousemove', e => {
+  if (!gameActive) return;
+  player.angle += e.movementX * 0.003;
+});
+canvas.addEventListener('click', () => {
+  canvas.requestPointerLock && canvas.requestPointerLock();
+  initAudio();
+});
+
+function initAudioOnce() {
+  initAudio();
+  document.removeEventListener('touchstart', initAudioOnce);
+}
+document.addEventListener('touchstart', initAudioOnce, {once:true});
+</script>
+</body>
+</html>
